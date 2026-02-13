@@ -6,18 +6,18 @@ export interface CoinListItem {
 }
 
 // Mapping for Binance WebSocket symbols
-export const COIN_TO_BINANCE: Record<string, string> = {
-  'bitcoin': 'btc',
-  'ethereum': 'eth',
-  'cardano': 'ada',
-  'ripple': 'xrp',
-  'solana': 'sol',
-  'polkadot': 'dot',
-  'dogecoin': 'doge',
-  'avalanche-2': 'avax',
-  'matic-network': 'matic',
-  'chainlink': 'link',
-};
+// export const COIN_TO_BINANCE: Record<string, string> = {
+//   'bitcoin': 'btc',
+//   'ethereum': 'eth',
+//   'cardano': 'ada',
+//   'ripple': 'xrp',
+//   'solana': 'sol',
+//   'polkadot': 'dot',
+//   'dogecoin': 'doge',
+//   'avalanche-2': 'avax',
+//   'matic-network': 'matic',
+//   'chainlink': 'link',
+// };
 
 // Coin price data from CoinGecko API (works for any coin, not just Bitcoin)
 export interface CoinPrice {

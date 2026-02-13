@@ -1,56 +1,68 @@
-import { WebSocketMessage } from '../types';
-
-type PriceCallback = (price: number) => void;
-
 export class CryptoWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 5;
-  private wsUrl: string = '';
-  private callback: PriceCallback | null = null;
-  private reconnectTimeout: number | null = null;
+  private readonly maxReconnectAttempts = 3;
+  private wsUrl: string = 'wss://ws.coincap.io/prices';
   private currentSymbol: string = '';
+  private onPriceUpdate: ((price: number) => void) | null = null;
 
-  /**
-   * Connect to Binance WebSocket for real-time price
-   * @param symbol - Binance symbol (e.g., 'btc', 'eth', 'ada')
-   */
-  connect(symbol: string, onPriceUpdate: PriceCallback): void {
-    // If already connected to this symbol, don't reconnect
-    if (this.currentSymbol === symbol && this.isConnected()) {
+  connect(coinId: string, onPriceUpdate: (price: number) => void) {
+    // Map coin IDs to CoinCap asset IDs
+    const coinMap: Record<string, string> = {
+      'bitcoin': 'bitcoin',
+      'ethereum': 'ethereum',
+      'cardano': 'cardano',
+      'ripple': 'xrp',
+      'solana': 'solana',
+      'polkadot': 'polkadot',
+      'dogecoin': 'dogecoin',
+      'avalanche': 'avalanche',
+      'avalanche-2': 'avalanche',
+      'polygon': 'polygon',
+      'matic-network': 'polygon',
+      'chainlink': 'chainlink',
+    };
+
+    const symbol = coinMap[coinId] || 'bitcoin';
+    
+    if (this.ws?.readyState === WebSocket.OPEN && this.currentSymbol === symbol) {
+      console.log(`✅ Already connected to ${symbol.toUpperCase()}`);
       return;
     }
 
-    // Disconnect existing connection
     if (this.ws) {
       this.disconnect();
     }
 
     this.currentSymbol = symbol;
-    this.wsUrl = `wss://stream.binance.com:9443/ws/${symbol}usdt@trade`;
-    this.callback = onPriceUpdate;
-    this.createConnection();
+    this.onPriceUpdate = onPriceUpdate;
+    this.createConnection(symbol, onPriceUpdate);
   }
 
-  private createConnection(): void {
+  private createConnection(symbol: string, onPriceUpdate: (price: number) => void) {
     try {
+      console.log(`🔌 Connecting to CoinCap WebSocket for ${symbol.toUpperCase()}...`);
+      
       this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => {
-        console.log(`✅ WebSocket connected to ${this.currentSymbol.toUpperCase()}`);
+        console.log(`✅ WebSocket connected to ${symbol.toUpperCase()}`);
         this.reconnectAttempts = 0;
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data: WebSocketMessage = JSON.parse(event.data);
-          const price = parseFloat(data.p);
+          const data = JSON.parse(event.data);
           
-          if (this.callback && !isNaN(price)) {
-            this.callback(price);
+          // CoinCap sends all prices, filter for our coin
+          if (data[symbol]) {
+            const price = parseFloat(data[symbol]);
+            if (!isNaN(price)) {
+              onPriceUpdate(price);
+            }
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('❌ Error parsing WebSocket message:', error);
         }
       };
 
@@ -63,44 +75,38 @@ export class CryptoWebSocket {
         this.attemptReconnect();
       };
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
+      console.error('❌ Failed to create WebSocket connection:', error);
       this.attemptReconnect();
     }
   }
 
-  private attemptReconnect(): void {
+  private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached. Giving up.');
+      console.log('❌ Max reconnection attempts reached');
+      this.reconnectAttempts = 0;
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
     
     console.log(`🔄 Reconnecting in ${delay / 1000}s... (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-
-    this.reconnectTimeout = window.setTimeout(() => {
-      this.createConnection();
+    
+    setTimeout(() => {
+      if (this.currentSymbol && this.onPriceUpdate) {
+        this.createConnection(this.currentSymbol, this.onPriceUpdate);
+      }
     }, delay);
   }
 
-  disconnect(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-
+  disconnect() {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-
-    this.callback = null;
-    this.reconnectAttempts = 0;
-    this.currentSymbol = '';
   }
 
   isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 }

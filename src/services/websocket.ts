@@ -37,7 +37,7 @@ export class CryptoWebSocket {
       this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => {
-        console.log(`✅ WebSocket connected to ${this.currentSymbol.toUpperCase()}`);
+        console.log(`WebSocket connected to ${this.currentSymbol.toUpperCase()}`);
         this.reconnectAttempts = 0;
       };
 
@@ -55,11 +55,11 @@ export class CryptoWebSocket {
       };
 
       this.ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        console.error('WebSocket error:', error);
       };
 
       this.ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+        console.log('WebSocket disconnected');
         this.attemptReconnect();
       };
     } catch (error) {

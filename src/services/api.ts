@@ -1,9 +1,6 @@
 import { ChartDataPoint, CoinListItem } from '../types';
 
-// Use CORS proxy for all API calls
-const CORS_PROXY = 'https://corsproxy.io/?';
-const COINGECKO_BASE_URL = `${CORS_PROXY}https://api.coingecko.com/api/v3`;
-const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2'; // This one usually works
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
 
 const POPULAR_COINS: CoinListItem[] = [
   { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin' },
@@ -24,9 +21,8 @@ export const fetchCoinsList = async (): Promise<CoinListItem[]> => {
 
 export const fetchCoinPrice = async (coinId: string): Promise<any> => {
   try {
-    const response = await fetch(
-      `${COINGECKO_BASE_URL}/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`
-    );
+    // Call our Vercel serverless function
+    const response = await fetch(`/api/price?coinId=${coinId}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch ${coinId} price`);
@@ -56,9 +52,8 @@ export const fetchCoinPrice = async (coinId: string): Promise<any> => {
 
 export const fetchCoinChartData = async (coinId: string): Promise<ChartDataPoint[]> => {
   try {
-    const response = await fetch(
-      `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=usd&days=1&interval=hourly`
-    );
+    // Call our Vercel serverless function
+    const response = await fetch(`/api/chart?coinId=${coinId}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch ${coinId} chart data`);

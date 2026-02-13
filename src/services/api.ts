@@ -1,9 +1,10 @@
 import { ChartDataPoint, CoinListItem } from '../types';
 
-const COINCAP_BASE_URL = 'https://api.coincap.io/v2';
-const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
+// Use CORS proxy for all API calls
+const CORS_PROXY = 'https://corsproxy.io/?';
+const COINGECKO_BASE_URL = `${CORS_PROXY}https://api.coingecko.com/api/v3`;
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2'; // This one usually works
 
-// Popular coins on CoinCap
 const POPULAR_COINS: CoinListItem[] = [
   { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin' },
   { id: 'ethereum', symbol: 'eth', name: 'Ethereum' },
@@ -12,8 +13,8 @@ const POPULAR_COINS: CoinListItem[] = [
   { id: 'solana', symbol: 'sol', name: 'Solana' },
   { id: 'polkadot', symbol: 'dot', name: 'Polkadot' },
   { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin' },
-  { id: 'avalanche', symbol: 'avax', name: 'Avalanche' },
-  { id: 'polygon', symbol: 'matic', name: 'Polygon' },
+  { id: 'avalanche-2', symbol: 'avax', name: 'Avalanche' },
+  { id: 'matic-network', symbol: 'matic', name: 'Polygon' },
   { id: 'chainlink', symbol: 'link', name: 'Chainlink' },
 ];
 
@@ -23,22 +24,28 @@ export const fetchCoinsList = async (): Promise<CoinListItem[]> => {
 
 export const fetchCoinPrice = async (coinId: string): Promise<any> => {
   try {
-    const response = await fetch(`${COINCAP_BASE_URL}/assets/${coinId}`);
+    const response = await fetch(
+      `${COINGECKO_BASE_URL}/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to fetch ${coinId} price`);
     }
 
-    const result = await response.json();
-    const coin = result.data;
+    const data = await response.json();
+    const coinData = data[coinId];
+
+    if (!coinData) {
+      throw new Error(`No data found for ${coinId}`);
+    }
 
     return {
-      usd: parseFloat(coin.priceUsd),
-      usd_24h_change: parseFloat(coin.changePercent24Hr),
-      usd_24h_vol: parseFloat(coin.volumeUsd24Hr),
-      usd_market_cap: parseFloat(coin.marketCapUsd),
-      usd_24h_high: parseFloat(coin.priceUsd) * 1.02, // Approximate
-      usd_24h_low: parseFloat(coin.priceUsd) * 0.98,  // Approximate
+      usd: coinData.usd,
+      usd_24h_change: coinData.usd_24h_change || 0,
+      usd_24h_vol: coinData.usd_24h_vol || 0,
+      usd_market_cap: coinData.usd_market_cap || 0,
+      usd_24h_high: coinData.usd || 0,
+      usd_24h_low: coinData.usd || 0,
       last_updated_at: Date.now() / 1000,
     };
   } catch (error) {
@@ -49,11 +56,8 @@ export const fetchCoinPrice = async (coinId: string): Promise<any> => {
 
 export const fetchCoinChartData = async (coinId: string): Promise<ChartDataPoint[]> => {
   try {
-    const end = Date.now();
-    const start = end - 24 * 60 * 60 * 1000; // 24 hours ago
-
     const response = await fetch(
-      `${COINCAP_BASE_URL}/assets/${coinId}/history?interval=h1&start=${start}&end=${end}`
+      `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=usd&days=1&interval=hourly`
     );
 
     if (!response.ok) {
@@ -62,9 +66,13 @@ export const fetchCoinChartData = async (coinId: string): Promise<ChartDataPoint
 
     const data = await response.json();
     
-    return data.data.map((point: any) => ({
-      time: Math.floor(point.time / 1000),
-      value: parseFloat(point.priceUsd),
+    if (!data.prices || data.prices.length === 0) {
+      throw new Error(`No chart data available for ${coinId}`);
+    }
+
+    return data.prices.map(([timestamp, price]: [number, number]) => ({
+      time: Math.floor(timestamp / 1000),
+      value: price,
     }));
   } catch (error) {
     console.error(`Error fetching chart data for ${coinId}:`, error);

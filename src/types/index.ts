@@ -15,18 +15,8 @@ export const COIN_TO_BINANCE: Record<string, string> = {
   'polkadot': 'dot',
   'dogecoin': 'doge',
   'avalanche-2': 'avax',
-  'polygon': 'matic',
+  'matic-network': 'matic',
   'chainlink': 'link',
-  'litecoin': 'ltc',
-  'stellar': 'xlm',
-  'uniswap': 'uni',
-  'cosmos': 'atom',
-  'algorand': 'algo',
-  'tron': 'trx',
-  'shiba-inu': 'shib',
-  'near': 'near',
-  'aptos': 'apt',
-  'arbitrum': 'arb',
 };
 
 // Coin price data from CoinGecko API (works for any coin, not just Bitcoin)

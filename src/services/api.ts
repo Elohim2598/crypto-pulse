@@ -1,7 +1,9 @@
 import { ChartDataPoint, CoinListItem } from '../types';
 
+const BINANCE_BASE_URL = 'https://api.binance.com/api/v3';
 const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
 
+// Hardcoded popular coins (since Binance doesn't have a full list endpoint)
 const POPULAR_COINS: CoinListItem[] = [
   { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin' },
   { id: 'ethereum', symbol: 'eth', name: 'Ethereum' },
@@ -10,8 +12,8 @@ const POPULAR_COINS: CoinListItem[] = [
   { id: 'solana', symbol: 'sol', name: 'Solana' },
   { id: 'polkadot', symbol: 'dot', name: 'Polkadot' },
   { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin' },
-  { id: 'avalanche-2', symbol: 'avax', name: 'Avalanche' },
-  { id: 'matic-network', symbol: 'matic', name: 'Polygon' },
+  { id: 'avalanche', symbol: 'avax', name: 'Avalanche' },
+  { id: 'polygon', symbol: 'matic', name: 'Polygon' },
   { id: 'chainlink', symbol: 'link', name: 'Chainlink' },
 ];
 
@@ -20,59 +22,47 @@ export const fetchCoinsList = async (): Promise<CoinListItem[]> => {
 };
 
 export const fetchCoinPrice = async (coinId: string): Promise<any> => {
-  try {
-    // Call our Vercel serverless function
-    const response = await fetch(`/api/price?coinId=${coinId}`);
+  const coin = POPULAR_COINS.find(c => c.id === coinId);
+  if (!coin) throw new Error('Coin not found');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${coinId} price`);
-    }
+  const symbol = `${coin.symbol.toUpperCase()}USDT`;
+  
+  const [ticker, stats] = await Promise.all([
+    fetch(`${BINANCE_BASE_URL}/ticker/24hr?symbol=${symbol}`).then(r => r.json()),
+    fetch(`${BINANCE_BASE_URL}/ticker/price?symbol=${symbol}`).then(r => r.json()),
+  ]);
 
-    const data = await response.json();
-    const coinData = data[coinId];
-
-    if (!coinData) {
-      throw new Error(`No data found for ${coinId}`);
-    }
-
-    return {
-      usd: coinData.usd,
-      usd_24h_change: coinData.usd_24h_change || 0,
-      usd_24h_vol: coinData.usd_24h_vol || 0,
-      usd_market_cap: coinData.usd_market_cap || 0,
-      usd_24h_high: coinData.usd || 0,
-      usd_24h_low: coinData.usd || 0,
-      last_updated_at: Date.now() / 1000,
-    };
-  } catch (error) {
-    console.error(`Error fetching price for ${coinId}:`, error);
-    throw error;
-  }
+  return {
+    usd: parseFloat(stats.price),
+    usd_24h_change: parseFloat(ticker.priceChangePercent),
+    usd_24h_vol: parseFloat(ticker.volume) * parseFloat(stats.price),
+    usd_market_cap: 0, // Binance doesn't provide market cap
+    usd_24h_high: parseFloat(ticker.highPrice),   // ← Add this
+    usd_24h_low: parseFloat(ticker.lowPrice),     // ← Add this
+    last_updated_at: Date.now() / 1000,
+  };
 };
 
 export const fetchCoinChartData = async (coinId: string): Promise<ChartDataPoint[]> => {
-  try {
-    // Call our Vercel serverless function
-    const response = await fetch(`/api/chart?coinId=${coinId}`);
+  const coin = POPULAR_COINS.find(c => c.id === coinId);
+  if (!coin) throw new Error('Coin not found');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${coinId} chart data`);
-    }
+  const symbol = `${coin.symbol.toUpperCase()}USDT`;
+  
+  const response = await fetch(
+    `${BINANCE_BASE_URL}/klines?symbol=${symbol}&interval=1h&limit=24`
+  );
 
-    const data = await response.json();
-    
-    if (!data.prices || data.prices.length === 0) {
-      throw new Error(`No chart data available for ${coinId}`);
-    }
-
-    return data.prices.map(([timestamp, price]: [number, number]) => ({
-      time: Math.floor(timestamp / 1000),
-      value: price,
-    }));
-  } catch (error) {
-    console.error(`Error fetching chart data for ${coinId}:`, error);
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${coinId} chart data`);
   }
+
+  const data = await response.json();
+  
+  return data.map((candle: any) => ({
+    time: Math.floor(candle[0] / 1000),
+    value: parseFloat(candle[4]), // Close price
+  }));
 };
 
 export const fetchCryptoNews = async (coinSymbol: string = 'BTC'): Promise<any> => {

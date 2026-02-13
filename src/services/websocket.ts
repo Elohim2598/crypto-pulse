@@ -1,79 +1,56 @@
+import { WebSocketMessage } from '../types';
+
+type PriceCallback = (price: number) => void;
+
 export class CryptoWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 3;
+  private readonly maxReconnectAttempts = 5;
+  private wsUrl: string = '';
+  private callback: PriceCallback | null = null;
+  private reconnectTimeout: number | null = null;
   private currentSymbol: string = '';
-  private onPriceUpdate: ((price: number) => void) | null = null;
 
-  connect(coinId: string, onPriceUpdate: (price: number) => void) {
-    // Map coin IDs to Kraken pairs
-    const coinMap: Record<string, string> = {
-      'bitcoin': 'XBT/USD',
-      'ethereum': 'ETH/USD',
-      'cardano': 'ADA/USD',
-      'ripple': 'XRP/USD',
-      'solana': 'SOL/USD',
-      'polkadot': 'DOT/USD',
-      'dogecoin': 'DOGE/USD',
-      'avalanche': 'AVAX/USD',
-      'avalanche-2': 'AVAX/USD',
-      'polygon': 'MATIC/USD',
-      'matic-network': 'MATIC/USD',
-      'chainlink': 'LINK/USD',
-    };
-
-    const symbol = coinMap[coinId] || 'XBT/USD';
-    
-    if (this.ws?.readyState === WebSocket.OPEN && this.currentSymbol === symbol) {
-      console.log(`✅ Already connected to ${symbol}`);
+  /**
+   * Connect to Binance WebSocket for real-time price
+   * @param symbol - Binance symbol (e.g., 'btc', 'eth', 'ada')
+   */
+  connect(symbol: string, onPriceUpdate: PriceCallback): void {
+    // If already connected to this symbol, don't reconnect
+    if (this.currentSymbol === symbol && this.isConnected()) {
       return;
     }
 
+    // Disconnect existing connection
     if (this.ws) {
       this.disconnect();
     }
 
     this.currentSymbol = symbol;
-    this.onPriceUpdate = onPriceUpdate;
-    this.createConnection(symbol, onPriceUpdate);
+    this.wsUrl = `wss://stream.binance.com:9443/ws/${symbol}usdt@trade`;
+    this.callback = onPriceUpdate;
+    this.createConnection();
   }
 
-  private createConnection(symbol: string, onPriceUpdate: (price: number) => void) {
+  private createConnection(): void {
     try {
-      console.log(`🔌 Connecting to Kraken WebSocket for ${symbol}...`);
-      
-      this.ws = new WebSocket('wss://ws.kraken.com');
+      this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => {
-        console.log(`✅ WebSocket connected to ${symbol}`);
+        console.log(`✅ WebSocket connected to ${this.currentSymbol.toUpperCase()}`);
         this.reconnectAttempts = 0;
-        
-        // Subscribe to ticker for this pair
-        const subscribeMsg = {
-          event: 'subscribe',
-          pair: [symbol],
-          subscription: { name: 'ticker' }
-        };
-        
-        this.ws?.send(JSON.stringify(subscribeMsg));
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data: WebSocketMessage = JSON.parse(event.data);
+          const price = parseFloat(data.p);
           
-          // Kraken ticker format: [channelID, data, channelName, pair]
-          if (Array.isArray(data) && data[2] === 'ticker') {
-            const tickerData = data[1];
-            // tickerData.c is [price, volume] - we want the price
-            const price = parseFloat(tickerData.c[0]);
-            
-            if (!isNaN(price)) {
-              onPriceUpdate(price);
-            }
+          if (this.callback && !isNaN(price)) {
+            this.callback(price);
           }
         } catch (error) {
-          console.error('❌ Error parsing WebSocket message:', error);
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
@@ -86,48 +63,44 @@ export class CryptoWebSocket {
         this.attemptReconnect();
       };
     } catch (error) {
-      console.error('❌ Failed to create WebSocket connection:', error);
+      console.error('Failed to create WebSocket:', error);
       this.attemptReconnect();
     }
   }
 
-  private attemptReconnect() {
+  private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('❌ Max reconnection attempts reached');
-      this.reconnectAttempts = 0;
+      console.error('Max reconnection attempts reached. Giving up.');
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
     
     console.log(`🔄 Reconnecting in ${delay / 1000}s... (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
-    setTimeout(() => {
-      if (this.currentSymbol && this.onPriceUpdate) {
-        this.createConnection(this.currentSymbol, this.onPriceUpdate);
-      }
+
+    this.reconnectTimeout = window.setTimeout(() => {
+      this.createConnection();
     }, delay);
   }
 
-  disconnect() {
+  disconnect(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     if (this.ws) {
-      // Unsubscribe before closing
-      if (this.ws.readyState === WebSocket.OPEN && this.currentSymbol) {
-        const unsubscribeMsg = {
-          event: 'unsubscribe',
-          pair: [this.currentSymbol],
-          subscription: { name: 'ticker' }
-        };
-        this.ws.send(JSON.stringify(unsubscribeMsg));
-      }
-      
       this.ws.close();
       this.ws = null;
     }
+
+    this.callback = null;
+    this.reconnectAttempts = 0;
+    this.currentSymbol = '';
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 }

@@ -1,7 +1,7 @@
 import { ChartDataPoint, CoinListItem } from '../types';
 
 const BINANCE_BASE_URL = 'https://api.binance.com/api/v3';
-const CRYPTOCOMPARE_BASE_URL = '/api/cryptocompare';
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
 
 // Hardcoded popular coins (since Binance doesn't have a full list endpoint)
 const POPULAR_COINS: CoinListItem[] = [

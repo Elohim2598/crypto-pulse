@@ -17,6 +17,19 @@ Real-time cryptocurrency tracker with live prices, interactive charts, latest ne
 
 ---
 
+## IMPORTANT NOTICE FOR USA USERS
+
+This application uses the Binance WebSocket API for real-time price updates.
+Due to regulatory restrictions, Binance WebSocket connections are blocked for users located in the United States.
+If you are in the USA, you will need to use a VPN browser extension and set your location to:
+
+- **South America**
+- **Europe**
+- **Or another supported region**
+
+Without this, real-time price updates via WebSocket will not work.
+
+
 ## Tech Stack
 
 ### Frontend
